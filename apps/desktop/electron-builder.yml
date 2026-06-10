@@ -1,12 +1,12 @@
-appId: dev.openpets.app
-productName: OpenPets
-executableName: openpets
-copyright: Copyright © 2026 OpenPets
+appId: dev.petdash.app
+productName: PetDash
+executableName: petdash
+copyright: Copyright © 2026 awesome-petdash contributors (fork of OpenPets by alvinunreal)
 
 directories:
   output: dist-electron
 
-artifactName: OpenPets-${version}-${os}-${arch}.${ext}
+artifactName: PetDash-${version}-${os}-${arch}.${ext}
 
 files:
   - dist/**
@@ -51,13 +51,13 @@ win:
   verifyUpdateCodeSignature: false
 
 nsis:
-  artifactName: OpenPets-${version}-win-${arch}-setup.${ext}
+  artifactName: PetDash-${version}-win-${arch}-setup.${ext}
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
 
 portable:
-  artifactName: OpenPets-${version}-win-${arch}-portable.${ext}
+  artifactName: PetDash-${version}-win-${arch}-portable.${ext}
 
 linux:
   icon: assets/app-icon.png

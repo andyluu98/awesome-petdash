@@ -99,7 +99,7 @@ export function createDefaultPetWindow(options: DefaultPetWindowOptions, dismiss
 }
 
 export function createAgentPetWindow(options: AgentPetWindowOptions, dismissToken?: string): BrowserWindow {
-  const window = createBasePetWindow(`OpenPets — ${options.displayName}`, options.position);
+  const window = createBasePetWindow(`PetDash — ${options.displayName}`, options.position);
   info("pet.window", "agent window create", { windowId: window.id, petId: options.petId, displayName: options.displayName, position: options.position, hasDisplay: Boolean(options.display), badge: options.badge });
   installMousePassthroughAndDrag(window, options.onBubbleDismissed);
   installMotionStatePublisher(window);
@@ -642,7 +642,7 @@ async function createDefaultPetRender(paused: boolean, display: PetTransientDisp
   }
 
   const spriteUrl = pathToFileURL(join(app.getAppPath(), "assets", defaultPetSprite.fileName)).toString();
-  const bodyHtml = createPetBodyMarkup("OpenPets default pet", createBubbleMarkup(display, paused, badge, dismissToken), `<div class="sprite" role="img" aria-label="Claude animated default pet"></div>`);
+  const bodyHtml = createPetBodyMarkup("PetDash default pet", createBubbleMarkup(display, paused, badge, dismissToken), `<div class="sprite" role="img" aria-label="Claude animated default pet"></div>`);
   const reactionState = getReactionSpriteState(display?.reaction);
   const stateRows = defaultPetSprite.states;
   const scale = getAppStateSnapshot().preferences.petScale as PetScaleValue;
@@ -657,7 +657,7 @@ async function createDefaultPetRender(paused: boolean, display: PetTransientDisp
         <meta charset="utf-8" />
         <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src file: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-src 'none'" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>OpenPets Default Pet</title>
+        <title>PetDash Default Pet</title>
         <style>
           ${createPetWindowCss(paused, scale)}
           .sprite {
@@ -733,7 +733,7 @@ async function createInstalledPetRender(petId: string, displayName: string, paus
           <meta charset="utf-8" />
           <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src file: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-src 'none'" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
-          <title>OpenPets Default Pet</title>
+          <title>PetDash Default Pet</title>
           <style>
             ${createPetWindowCss(paused, scale)}
             .installed-card { width: ${Math.ceil(defaultPetSprite.frameWidth * scale)}px; height: ${Math.ceil(defaultPetSprite.frameHeight * scale)}px; overflow: visible; position: relative; }

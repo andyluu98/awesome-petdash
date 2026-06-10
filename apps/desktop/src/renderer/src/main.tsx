@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
-import openPetsLogoUrl from "../../../assets/openpets.webp";
+import openPetsLogoUrl from "../../../assets/app-icon.png";
 import defaultThumbUrl from "../../../assets/default-pet-thumbnail.png";
 
 import claudeLogoUrl from "../../../assets/integrations/claude.svg";
 import opencodeLogoUrl from "../../../assets/integrations/opencode.svg";
 import cursorLogoUrl from "../../../assets/integrations/cursor.svg";
+import codexLogoUrl from "../../../assets/integrations/openai-codex.svg";
+import antigravityLogoUrl from "../../../assets/integrations/antigravity.svg";
 import piLogoUrl from "../../../assets/integrations/pi.svg";
 import vscodeLogoUrl from "../../../assets/integrations/vscode.svg";
 import windsurfLogoUrl from "../../../assets/integrations/windsurf.svg";
@@ -84,7 +86,7 @@ type ControlCenterApi = {
 };
 
 
-type AgentSetupAction = "configure" | "replace" | "remove" | "install-memory" | "doctor-hooks" | "install-hooks" | "uninstall-hooks" | "opencode-install" | "opencode-remove" | "cursor-install" | "cursor-replace" | "cursor-remove";
+type AgentSetupAction = "configure" | "replace" | "remove" | "install-memory" | "doctor-hooks" | "install-hooks" | "uninstall-hooks" | "opencode-install" | "opencode-remove" | "cursor-install" | "cursor-replace" | "cursor-remove" | "codex-install" | "codex-replace" | "codex-remove" | "antigravity-install" | "antigravity-replace" | "antigravity-remove";
 type AgentSetupPetOption = { id: string; displayName: string; default: boolean };
 type ClaudeCodeStatus = { state: "detected" | "not_detected" | "configured" | "needs_setup" | "error"; label: string; details: string; claudeCommand?: string; version?: string; mcpListWorks: boolean; openPetsEntry: { present: boolean; verified: boolean; matchesExpected: boolean }; canConfigure: boolean; canReplace: boolean; canRemove: boolean };
 type ClaudeHookDoctorResult = { status: "installed" | "needs_setup" | "error" | "custom" | "conflict"; settingsPath: string; exists: boolean; valid: boolean; message: string; preview: Record<string, unknown>; asyncSupported: boolean; backupPath?: string };
@@ -93,9 +95,13 @@ type OpenCodeSetupStatus = { state: "configured" | "needs_setup" | "not_detected
 type OpenCodeSetupPreview = { global: true; configDir: string; configPath: string; cleanupConfigPaths: string[]; mcpCommand: string[]; plugin: unknown[] | string; instructionPath: string; configPreview: Record<string, unknown> };
 type CursorSetupStatus = { state: "configured" | "needs_setup" | "not_detected" | "error" | "conflict" | "needs_update"; label: string; details: string; configPath: string; canInstall: boolean; canReplace: boolean; canRemove: boolean };
 type CursorSetupPreview = { global: true; configPath: string; mcpEntry: Record<string, unknown>; rulesPath: string; rulesContent: string; commandMode: "published" | "local" | "bundled" };
-type AgentSetupCommandPaths = { claude: string; node: string; opencode: string };
+type CodexSetupStatus = { state: "configured" | "needs_setup" | "not_detected" | "error" | "conflict" | "needs_update"; label: string; details: string; configPath: string; canInstall: boolean; canReplace: boolean; canRemove: boolean };
+type CodexSetupPreview = { global: true; configPath: string; mcpEntry: Record<string, unknown>; commandMode: "published" };
+type AntigravitySetupStatus = { state: "configured" | "needs_setup" | "not_detected" | "error" | "conflict" | "needs_update"; label: string; details: string; configPath: string; canInstall: boolean; canReplace: boolean; canRemove: boolean };
+type AntigravitySetupPreview = { global: true; configPath: string; mcpEntry: Record<string, unknown>; commandMode: "published" };
+type AgentSetupCommandPaths = { claude: string; node: string; opencode: string; codex: string; antigravity: string };
 type AgentSetupActionResult = { ok: boolean; action: AgentSetupAction; message: string; changed: boolean };
-type AgentSetupSnapshot = { selectedPetId?: string; commandMode: "published" | "local" | "bundled"; localDevAvailable: boolean; petOptions: AgentSetupPetOption[]; preview: { displayCommand: string; mcpJson: Record<string, unknown> }; status: ClaudeCodeStatus; hookStatus: ClaudeHookDoctorResult; memoryStatus: ClaudeOpenPetsMemoryStatus; opencodeStatus: OpenCodeSetupStatus; opencodePreview: OpenCodeSetupPreview; cursorStatus: CursorSetupStatus; cursorPreview: CursorSetupPreview; commandPaths: AgentSetupCommandPaths; busy: boolean; lastAction?: AgentSetupActionResult };
+type AgentSetupSnapshot = { selectedPetId?: string; commandMode: "published" | "local" | "bundled"; localDevAvailable: boolean; petOptions: AgentSetupPetOption[]; preview: { displayCommand: string; mcpJson: Record<string, unknown> }; status: ClaudeCodeStatus; hookStatus: ClaudeHookDoctorResult; memoryStatus: ClaudeOpenPetsMemoryStatus; opencodeStatus: OpenCodeSetupStatus; opencodePreview: OpenCodeSetupPreview; cursorStatus: CursorSetupStatus; cursorPreview: CursorSetupPreview; codexStatus: CodexSetupStatus; codexPreview: CodexSetupPreview; antigravityStatus: AntigravitySetupStatus; antigravityPreview: AntigravitySetupPreview; commandPaths: AgentSetupCommandPaths; busy: boolean; lastAction?: AgentSetupActionResult };
 type StatusTone = keyof typeof statusPillToneClass;
 
 const api = (window as unknown as { openPetsControlCenter: ControlCenterApi }).openPetsControlCenter;
@@ -973,7 +979,7 @@ function SettingsView() {
             <div className="settings-group">
               <ToggleRow
                 title="Show pet on launch"
-                description="Keep OpenPets in the tray but hide the pet until requested."
+                description="Keep PetDash in the tray but hide the pet until requested."
                 checked={settings?.preferences.openDefaultPetOnLaunch ?? false}
                 disabled={!settings || !!busy}
                 onChange={(checked) => patchPreferences({ openDefaultPetOnLaunch: checked }, "Startup preference saved.")}
@@ -1362,6 +1368,8 @@ function IntegrationIcon({ id }: { id: string }) {
     claude: claudeLogoUrl,
     opencode: opencodeLogoUrl,
     cursor: cursorLogoUrl,
+    "openai-codex": codexLogoUrl,
+    antigravity: antigravityLogoUrl,
     pi: piLogoUrl,
     vscode: vscodeLogoUrl,
     windsurf: windsurfLogoUrl,
@@ -1387,6 +1395,22 @@ function opencodeStatusTone(state: OpenCodeSetupStatus["state"]): StatusTone {
 }
 
 function cursorStatusTone(state: CursorSetupStatus["state"]): StatusTone {
+  if (state === "configured") return "green";
+  if (state === "error" || state === "conflict") return "red";
+  if (state === "needs_update") return "orange";
+  if (state === "needs_setup") return "blue";
+  return "slate";
+}
+
+function codexStatusTone(state: CodexSetupStatus["state"]): StatusTone {
+  if (state === "configured") return "green";
+  if (state === "error" || state === "conflict") return "red";
+  if (state === "needs_update") return "orange";
+  if (state === "needs_setup") return "blue";
+  return "slate";
+}
+
+function antigravityStatusTone(state: AntigravitySetupStatus["state"]): StatusTone {
   if (state === "configured") return "green";
   if (state === "error" || state === "conflict") return "red";
   if (state === "needs_update") return "orange";
@@ -1469,10 +1493,12 @@ function IntegrationsView() {
   const integrationDialogTitleId = selectedId ? `integration-detail-title-${selectedId}` : undefined;
 
   const integrations = [
-    { id: "claude", name: "Claude Code", icon: "claude", status: snapshot.status.label, tone: claudeStatusTone(snapshot.status.state), description: "Connect Claude Code to your OpenPets companion." },
-    { id: "opencode", name: "OpenCode", icon: "opencode", status: snapshot.opencodeStatus.label, tone: opencodeStatusTone(snapshot.opencodeStatus.state), description: "Connect OpenCode globally to your OpenPets companion." },
-    { id: "cursor", name: "Cursor", icon: "cursor", status: snapshot.cursorStatus.label, tone: cursorStatusTone(snapshot.cursorStatus.state), description: "Connect Cursor to your OpenPets companion via global MCP config." },
-    { id: "pi", name: "Pi", icon: "pi", status: "Manual", tone: "blue" satisfies StatusTone, description: "Connect Pi coding-agent activity through the OpenPets Pi extension package." },
+    { id: "claude", name: "Claude Code", icon: "claude", status: snapshot.status.label, tone: claudeStatusTone(snapshot.status.state), description: "Connect Claude Code to your PetDash companion." },
+    { id: "opencode", name: "OpenCode", icon: "opencode", status: snapshot.opencodeStatus.label, tone: opencodeStatusTone(snapshot.opencodeStatus.state), description: "Connect OpenCode globally to your PetDash companion." },
+    { id: "cursor", name: "Cursor", icon: "cursor", status: snapshot.cursorStatus.label, tone: cursorStatusTone(snapshot.cursorStatus.state), description: "Connect Cursor to your PetDash companion via global MCP config." },
+    { id: "openai-codex", name: "OpenAI Codex", icon: "openai-codex", status: snapshot.codexStatus.label, tone: codexStatusTone(snapshot.codexStatus.state), description: "Connect OpenAI Codex to your pet via global MCP config (~/.codex/config.toml)." },
+    { id: "antigravity", name: "Google Antigravity", icon: "antigravity", status: snapshot.antigravityStatus.label, tone: antigravityStatusTone(snapshot.antigravityStatus.state), description: "Connect Google Antigravity to your pet via global MCP config (~/.gemini/config/mcp_config.json)." },
+    { id: "pi", name: "Pi", icon: "pi", status: "Manual", tone: "blue" satisfies StatusTone, description: "Connect Pi coding-agent activity through the PetDash Pi extension package." },
   ] as const;
 
   const soon = [
@@ -1508,6 +1534,8 @@ function IntegrationsView() {
                 {item.id === "claude" && snapshot.status.canConfigure && <Button variant="primary" size="compact" icon={<InstallIcon />} disabled={isBusy} onClick={() => run("Installing", "configure")}>Install</Button>}
                 {item.id === "opencode" && snapshot.opencodeStatus.canInstall && <Button variant="primary" size="compact" icon={<InstallIcon />} disabled={isBusy} onClick={() => run("Installing", "opencode-install")}>Install</Button>}
                 {item.id === "cursor" && snapshot.cursorStatus.canInstall && <Button variant="primary" size="compact" icon={<InstallIcon />} disabled={isBusy} onClick={() => run("Installing", "cursor-install")}>Install</Button>}
+                {item.id === "openai-codex" && snapshot.codexStatus.canInstall && <Button variant="primary" size="compact" icon={<InstallIcon />} disabled={isBusy} onClick={() => run("Installing", "codex-install")}>Install</Button>}
+                {item.id === "antigravity" && snapshot.antigravityStatus.canInstall && <Button variant="primary" size="compact" icon={<InstallIcon />} disabled={isBusy} onClick={() => run("Installing", "antigravity-install")}>Install</Button>}
                 <Button variant="secondary" size="compact" icon={<ConfigureIcon />} fullWidth={item.id === "pi"} onClick={() => setSelectedId(item.id)}>{item.id === "pi" ? "View Setup" : "Configure"}</Button>
               </div>
             </div>
@@ -1558,7 +1586,7 @@ function IntegrationsView() {
                     <option value="bundled">{commandModeLabels.bundled}</option>
                     <option value="local" disabled={!snapshot.localDevAvailable}>{commandModeLabels.local}{snapshot.localDevAvailable ? "" : " unavailable"}</option>
                   </select>
-                  <p className="text-xs text-slatecopy mt-2">Use the published package for normal setup, bundled for the desktop app build, or local while developing OpenPets.</p>
+                  <p className="text-xs text-slatecopy mt-2">Use the published package for normal setup, bundled for the desktop app build, or local while developing PetDash.</p>
                 </section>
               )}
 
@@ -1747,6 +1775,100 @@ function IntegrationsView() {
                     <p className="mt-3 text-xs text-slatecopy">{snapshot.cursorPreview.rulesPath}</p>
                     <pre className="mt-3 p-3 rounded-xl bg-navy/5 text-[10px] font-mono overflow-x-auto border border-navy/5">
                       {snapshot.cursorPreview.rulesContent}
+                    </pre>
+                  </details>
+                </>
+              )}
+
+              {selectedId === "openai-codex" && (
+                <>
+                  <section className="plugin-section">
+                    <div className="plugin-section-title"><small>Connection</small><strong>Global MCP</strong></div>
+                    <div className="flex items-center justify-between p-3 rounded-2xl bg-blue-50/50 border border-blue-100/50">
+                      <div className="flex flex-col">
+                        <strong className="text-sm text-navy">{snapshot.codexStatus.label}</strong>
+                        <small className="text-xs text-slatecopy">{snapshot.codexStatus.details}</small>
+                      </div>
+                      <StatusPill tone={codexStatusTone(snapshot.codexStatus.state)}>{snapshot.codexStatus.state}</StatusPill>
+                    </div>
+                    <div className="mt-2">
+                      <label className="text-xs font-bold text-slatecopy uppercase tracking-wider mb-1 block">Pet Routing</label>
+                      <select
+                        className="settings-select w-full"
+                        value={snapshot.selectedPetId || ""}
+                        onChange={(e) => void load(e.target.value)}
+                        disabled={isBusy}
+                      >
+                        <option value="">Default Pet</option>
+                        {snapshot.petOptions.map(p => <option key={p.id} value={p.id}>{p.displayName}</option>)}
+                      </select>
+                    </div>
+                  </section>
+
+                  <section className="plugin-section">
+                    <div className="plugin-section-title"><small>Actions</small><strong>Management</strong></div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {snapshot.codexStatus.canInstall && <Button variant="primary" icon={<InstallIcon />} disabled={isBusy} onClick={() => run("Installing", "codex-install")}>Install MCP</Button>}
+                      {snapshot.codexStatus.canReplace && <Button variant="warning" icon={<ReplaceIcon />} disabled={isBusy} onClick={() => run("Replacing", "codex-replace")}>Replace MCP</Button>}
+                      {snapshot.codexStatus.canRemove && <Button variant="danger" icon={<RemoveIcon />} disabled={isBusy} onClick={() => run("Removing", "codex-remove")}>Remove MCP</Button>}
+                      <Button variant="secondary" icon={<RefreshIcon />} disabled={isBusy} onClick={() => void load()}>Refresh Status</Button>
+                    </div>
+                  </section>
+
+                  <details className="plugin-section group">
+                    <summary className="cursor-pointer list-none flex items-center justify-between">
+                      <div className="plugin-section-title"><small>Advanced</small><strong>MCP Entry Preview</strong></div>
+                      <span className="text-brand group-open:rotate-180 transition-transform"><NextIcon /></span>
+                    </summary>
+                    <pre className="mt-3 p-3 rounded-xl bg-navy/5 text-[10px] font-mono overflow-x-auto border border-navy/5">
+                      {JSON.stringify({ mcp_servers: snapshot.codexPreview.mcpEntry }, null, 2)}
+                    </pre>
+                  </details>
+                </>
+              )}
+
+              {selectedId === "antigravity" && (
+                <>
+                  <section className="plugin-section">
+                    <div className="plugin-section-title"><small>Connection</small><strong>Global MCP</strong></div>
+                    <div className="flex items-center justify-between p-3 rounded-2xl bg-blue-50/50 border border-blue-100/50">
+                      <div className="flex flex-col">
+                        <strong className="text-sm text-navy">{snapshot.antigravityStatus.label}</strong>
+                        <small className="text-xs text-slatecopy">{snapshot.antigravityStatus.details}</small>
+                      </div>
+                      <StatusPill tone={antigravityStatusTone(snapshot.antigravityStatus.state)}>{snapshot.antigravityStatus.state}</StatusPill>
+                    </div>
+                    <div className="mt-2">
+                      <label className="text-xs font-bold text-slatecopy uppercase tracking-wider mb-1 block">Pet Routing</label>
+                      <select
+                        className="settings-select w-full"
+                        value={snapshot.selectedPetId || ""}
+                        onChange={(e) => void load(e.target.value)}
+                        disabled={isBusy}
+                      >
+                        <option value="">Default Pet</option>
+                        {snapshot.petOptions.map(p => <option key={p.id} value={p.id}>{p.displayName}</option>)}
+                      </select>
+                    </div>
+                  </section>
+
+                  <section className="plugin-section">
+                    <div className="plugin-section-title"><small>Actions</small><strong>Management</strong></div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {snapshot.antigravityStatus.canInstall && <Button variant="primary" icon={<InstallIcon />} disabled={isBusy} onClick={() => run("Installing", "antigravity-install")}>Install MCP</Button>}
+                      {snapshot.antigravityStatus.canReplace && <Button variant="warning" icon={<ReplaceIcon />} disabled={isBusy} onClick={() => run("Replacing", "antigravity-replace")}>Replace MCP</Button>}
+                      {snapshot.antigravityStatus.canRemove && <Button variant="danger" icon={<RemoveIcon />} disabled={isBusy} onClick={() => run("Removing", "antigravity-remove")}>Remove MCP</Button>}
+                      <Button variant="secondary" icon={<RefreshIcon />} disabled={isBusy} onClick={() => void load()}>Refresh Status</Button>
+                    </div>
+                  </section>
+
+                  <details className="plugin-section group">
+                    <summary className="cursor-pointer list-none flex items-center justify-between">
+                      <div className="plugin-section-title"><small>Advanced</small><strong>MCP Entry Preview</strong></div>
+                      <span className="text-brand group-open:rotate-180 transition-transform"><NextIcon /></span>
+                    </summary>
+                    <pre className="mt-3 p-3 rounded-xl bg-navy/5 text-[10px] font-mono overflow-x-auto border border-navy/5">
+                      {JSON.stringify({ mcpServers: snapshot.antigravityPreview.mcpEntry }, null, 2)}
                     </pre>
                   </details>
                 </>
@@ -2255,7 +2377,7 @@ function App() {
           <p className="hero-desc">{currentMeta.description}</p>
         </div>
         <div className="hero-logo-container">
-          <img src={openPetsLogoUrl} className="hero-brand-logo" alt="OpenPets" />
+          <img src={openPetsLogoUrl} className="hero-brand-logo" alt="PetDash" />
         </div>
       </header>
 

@@ -7,12 +7,16 @@ import { app } from "electron";
 import { buildClaudeMcpGetCommand, buildClaudeMcpPreview, classifyClaudeMcpStatus, createOpenPetsHookSettingsPreview, doctorClaudeHooks, installClaudeHooks, mapAsarPathToUnpacked, uninstallClaudeHooks, type ClaudeCommandSpec, type ClaudeHookDoctorResult, type ClaudeMcpPreview, type OpenPetsCommandMode, type ParsedClaudeMcpEntry } from "@open-pets/claude";
 import { buildCursorRulesPreview, classifyCursorMcpStatus, executeCursorMcpWrite, getCursorGlobalMcpPath, planCursorMcpInstall, planCursorMcpRemove, planCursorMcpReplace, readCursorMcpConfig, type CursorMcpStatusResult } from "@open-pets/cursor";
 import { buildOpenPetsOnlyPreview, type RedactedPreview } from "@open-pets/cursor";
+import { classifyCodexMcpStatus, executeCodexMcpWrite, getCodexGlobalConfigPath, planCodexMcpInstall, planCodexMcpRemove, planCodexMcpReplace, readCodexConfig, type CodexMcpStatusResult } from "@open-pets/codex";
+import { buildCodexOnlyPreview } from "@open-pets/codex";
+import { classifyAntigravityMcpStatus, executeAntigravityMcpWrite, getAntigravityGlobalMcpPath, planAntigravityMcpInstall, planAntigravityMcpRemove, planAntigravityMcpReplace, readAntigravityMcpConfig, type AntigravityMcpStatusResult } from "@open-pets/antigravity";
+import { buildAntigravityOnlyPreview } from "@open-pets/antigravity";
 import { doctorOpenCodeGlobalSetup, getGlobalOpenCodeConfigDir, parseOpenCodeConfig, prepareOpenCodeGlobalRemove, prepareOpenCodeGlobalSetup, writePreparedOpenCodeGlobalRemove, writePreparedOpenCodeGlobalSetup } from "@open-pets/opencode";
 
 import { getAppStateSnapshot, updatePreferences, type InstalledPetState, type OpenPetsStateV1 } from "./app-state.js";
 import { doctorClaudeOpenPetsMemory, installClaudeOpenPetsMemory, uninstallClaudeOpenPetsMemory, type ClaudeOpenPetsMemoryStatus } from "./claude-memory.js";
 
-export type AgentSetupAction = "configure" | "replace" | "remove" | "install-memory" | "doctor-hooks" | "install-hooks" | "uninstall-hooks" | "opencode-install" | "opencode-remove" | "cursor-install" | "cursor-replace" | "cursor-remove";
+export type AgentSetupAction = "configure" | "replace" | "remove" | "install-memory" | "doctor-hooks" | "install-hooks" | "uninstall-hooks" | "opencode-install" | "opencode-remove" | "cursor-install" | "cursor-replace" | "cursor-remove" | "codex-install" | "codex-replace" | "codex-remove" | "antigravity-install" | "antigravity-replace" | "antigravity-remove";
 export type JournalAction = "configure" | "update" | "replace" | "remove";
 
 export interface AgentSetupPetOption {
@@ -47,6 +51,10 @@ export interface AgentSetupSnapshot {
   readonly opencodePreview: OpenCodeSetupPreview;
   readonly cursorStatus: CursorSetupStatus;
   readonly cursorPreview: CursorSetupPreview;
+  readonly codexStatus: CodexSetupStatus;
+  readonly codexPreview: CodexSetupPreview;
+  readonly antigravityStatus: AntigravitySetupStatus;
+  readonly antigravityPreview: AntigravitySetupPreview;
   readonly commandPaths: AgentSetupCommandPaths;
   readonly busy: boolean;
   readonly lastAction?: AgentSetupActionResult;
@@ -56,6 +64,8 @@ export interface AgentSetupCommandPaths {
   readonly claude: string;
   readonly node: string;
   readonly opencode: string;
+  readonly codex: string;
+  readonly antigravity: string;
 }
 
 export interface OpenCodeSetupStatus {
@@ -95,6 +105,40 @@ export interface CursorSetupPreview {
   readonly rulesPath: string;
   readonly rulesContent: string;
   readonly commandMode: "published" | "local" | "bundled";
+}
+
+export interface CodexSetupStatus {
+  readonly state: "configured" | "needs_setup" | "not_detected" | "error" | "conflict" | "needs_update";
+  readonly label: string;
+  readonly details: string;
+  readonly configPath: string;
+  readonly canInstall: boolean;
+  readonly canReplace: boolean;
+  readonly canRemove: boolean;
+}
+
+export interface CodexSetupPreview {
+  readonly global: true;
+  readonly configPath: string;
+  readonly mcpEntry: ReturnType<typeof buildCodexOnlyPreview>;
+  readonly commandMode: "published";
+}
+
+export interface AntigravitySetupStatus {
+  readonly state: "configured" | "needs_setup" | "not_detected" | "error" | "conflict" | "needs_update";
+  readonly label: string;
+  readonly details: string;
+  readonly configPath: string;
+  readonly canInstall: boolean;
+  readonly canReplace: boolean;
+  readonly canRemove: boolean;
+}
+
+export interface AntigravitySetupPreview {
+  readonly global: true;
+  readonly configPath: string;
+  readonly mcpEntry: ReturnType<typeof buildAntigravityOnlyPreview>;
+  readonly commandMode: "published";
 }
 
 export interface AgentSetupActionResult {
@@ -140,6 +184,8 @@ export async function getAgentSetupSnapshot(selectedPetId?: unknown, commandMode
   const memoryStatus = { ...rawMemoryStatus, claudeMdPath: formatUserPath(rawMemoryStatus.claudeMdPath) ?? rawMemoryStatus.claudeMdPath, openPetsMemoryPath: formatUserPath(rawMemoryStatus.openPetsMemoryPath) ?? rawMemoryStatus.openPetsMemoryPath };
   const opencode = await getOpenCodeSetup(commandMode, petId);
   const cursor = await getCursorSetup(commandMode, petId);
+  const codex = await getCodexSetup(commandMode, petId);
+  const antigravity = await getAntigravitySetup(commandMode, petId);
 
   return {
     selectedPetId: petId,
@@ -154,6 +200,10 @@ export async function getAgentSetupSnapshot(selectedPetId?: unknown, commandMode
     opencodePreview: opencode.preview,
     cursorStatus: cursor.status,
     cursorPreview: cursor.preview,
+    codexStatus: codex.status,
+    codexPreview: codex.preview,
+    antigravityStatus: antigravity.status,
+    antigravityPreview: antigravity.preview,
     commandPaths: getAgentSetupCommandPaths(),
     busy: operationRunning,
     lastAction,
@@ -163,12 +213,14 @@ export async function getAgentSetupSnapshot(selectedPetId?: unknown, commandMode
 export function updateAgentSetupCommandPaths(patch: unknown): AgentSetupCommandPaths {
   if (!isRecord(patch)) throw new Error("Invalid command path settings.");
   for (const key of Object.keys(patch)) {
-    if (key !== "claude" && key !== "node" && key !== "opencode") throw new Error("Invalid command path setting.");
+    if (key !== "claude" && key !== "node" && key !== "opencode" && key !== "codex" && key !== "antigravity") throw new Error("Invalid command path setting.");
   }
   const updates: Writable<Partial<OpenPetsStateV1["preferences"]>> = {};
   if ("claude" in patch) updates.claudeCommandPath = normalizeOptionalCommandPath(patch.claude, "Claude");
   if ("node" in patch) updates.nodeCommandPath = normalizeOptionalCommandPath(patch.node, "Node.js");
   if ("opencode" in patch) updates.opencodeCommandPath = normalizeOptionalCommandPath(patch.opencode, "OpenCode");
+  if ("codex" in patch) updates.codexCommandPath = normalizeOptionalCommandPath(patch.codex, "OpenAI Codex");
+  if ("antigravity" in patch) updates.antigravityCommandPath = normalizeOptionalCommandPath(patch.antigravity, "Google Antigravity");
   updatePreferences(updates);
   return getAgentSetupCommandPaths();
 }
@@ -254,6 +306,12 @@ async function runAction(action: AgentSetupAction, selectedPetId: string | undef
   if (action === "cursor-install") return installCursorGlobal(selectedPetId, commandMode);
   if (action === "cursor-replace") return replaceCursorGlobal(selectedPetId, commandMode);
   if (action === "cursor-remove") return removeCursorGlobal();
+  if (action === "codex-install") return installCodexGlobal(selectedPetId, commandMode);
+  if (action === "codex-replace") return replaceCodexGlobal(selectedPetId, commandMode);
+  if (action === "codex-remove") return removeCodexGlobal();
+  if (action === "antigravity-install") return installAntigravityGlobal(selectedPetId, commandMode);
+  if (action === "antigravity-replace") return replaceAntigravityGlobal(selectedPetId, commandMode);
+  if (action === "antigravity-remove") return removeAntigravityGlobal();
   if (action === "doctor-hooks") {
     const doctor = safeDoctorClaudeHooks(commandMode, selectedPetId);
     writeActionJournal({ action: "update", selectedPetId, command: createHookJournalCommand("doctor-hooks", selectedPetId), previousStatus: doctor.status, success: doctor.status !== "error", message: doctor.message });
@@ -443,6 +501,8 @@ function getAgentSetupCommandPaths(): AgentSetupCommandPaths {
     claude: preferences.claudeCommandPath ?? "",
     node: preferences.nodeCommandPath ?? "",
     opencode: preferences.opencodeCommandPath ?? "",
+    codex: preferences.codexCommandPath ?? "",
+    antigravity: preferences.antigravityCommandPath ?? "",
   };
 }
 
@@ -576,6 +636,240 @@ async function removeCursorGlobal(): Promise<AgentSetupActionResult> {
     return { ok: false, action: "cursor-remove", message: "Failed to plan Cursor MCP remove.", changed: false };
   } catch (error) {
     return { ok: false, action: "cursor-remove", message: error instanceof Error ? error.message : "Cursor MCP remove failed.", changed: false };
+  }
+}
+
+async function getCodexSetup(commandMode: OpenPetsCommandMode, selectedPetId: string | undefined): Promise<{ readonly status: CodexSetupStatus; readonly preview: CodexSetupPreview }> {
+  void commandMode;
+  const homeDir = app.getPath("home");
+  const configPath = getCodexGlobalConfigPath(homeDir);
+  const petId = selectedPetId || undefined;
+  const mcpVersion = getMcpPackageVersion();
+
+  const configResult = readCodexConfig(configPath);
+  const statusResult = classifyCodexMcpStatus(configResult, configPath, { mcpVersion, petId, commandMode: "published" });
+
+  const state = mapCodexStatusToState(statusResult.status);
+  const label = mapCodexStatusToLabel(statusResult.status);
+  const details = statusResult.message;
+
+  return {
+    status: {
+      state,
+      label,
+      details,
+      configPath: formatUserPath(configPath) ?? configPath,
+      canInstall: statusResult.canInstall,
+      canReplace: statusResult.canReplace,
+      canRemove: statusResult.canRemove,
+    },
+    preview: {
+      global: true,
+      configPath: formatUserPath(configPath) ?? configPath,
+      mcpEntry: buildCodexOnlyPreview({ mcpVersion, petId, commandMode: "published" }),
+      commandMode: "published",
+    },
+  };
+}
+
+function mapCodexStatusToState(status: CodexMcpStatusResult["status"]): CodexSetupStatus["state"] {
+  switch (status) {
+    case "installed": return "configured";
+    case "missing": return "needs_setup";
+    case "needs-update": return "needs_update";
+    case "conflict": return "conflict";
+    case "invalid":
+    case "error": return "error";
+    default: return "error";
+  }
+}
+
+function mapCodexStatusToLabel(status: CodexMcpStatusResult["status"]): string {
+  switch (status) {
+    case "installed": return "Configured";
+    case "missing": return "Not configured";
+    case "needs-update": return "Needs update";
+    case "conflict": return "Conflict";
+    case "invalid":
+    case "error": return "Config error";
+    default: return "Checking";
+  }
+}
+
+async function installCodexGlobal(selectedPetId: string | undefined, commandMode: OpenPetsCommandMode): Promise<AgentSetupActionResult> {
+  void commandMode;
+  try {
+    const homeDir = app.getPath("home");
+    const configPath = getCodexGlobalConfigPath(homeDir);
+    const mcpVersion = getMcpPackageVersion();
+    const plan = planCodexMcpInstall(configPath, { mcpVersion, petId: selectedPetId || undefined, commandMode: "published" });
+    if ("ok" in plan && !plan.ok) {
+      return { ok: false, action: "codex-install", message: plan.message, changed: false };
+    }
+    if ("targetPath" in plan) {
+      executeCodexMcpWrite(plan);
+      const backupMsg = plan.backupPath ? ` Backup: ${formatUserPath(plan.backupPath) ?? plan.backupPath}.` : "";
+      return { ok: true, action: "codex-install", message: `Installed OpenAI Codex OpenPets MCP config at ${formatUserPath(configPath) ?? configPath}.${backupMsg} Codex may need to be restarted or reloaded.`, changed: true };
+    }
+    return { ok: false, action: "codex-install", message: "Failed to plan Codex MCP install.", changed: false };
+  } catch (error) {
+    return { ok: false, action: "codex-install", message: error instanceof Error ? error.message : "Codex MCP install failed.", changed: false };
+  }
+}
+
+async function replaceCodexGlobal(selectedPetId: string | undefined, commandMode: OpenPetsCommandMode): Promise<AgentSetupActionResult> {
+  void commandMode;
+  try {
+    const homeDir = app.getPath("home");
+    const configPath = getCodexGlobalConfigPath(homeDir);
+    const mcpVersion = getMcpPackageVersion();
+    const plan = planCodexMcpReplace(configPath, { mcpVersion, petId: selectedPetId || undefined, commandMode: "published" });
+    if ("ok" in plan && !plan.ok) {
+      return { ok: false, action: "codex-replace", message: plan.message, changed: false };
+    }
+    if ("targetPath" in plan) {
+      executeCodexMcpWrite(plan);
+      const backupMsg = plan.backupPath ? ` Backup: ${formatUserPath(plan.backupPath) ?? plan.backupPath}.` : "";
+      return { ok: true, action: "codex-replace", message: `Replaced OpenAI Codex OpenPets MCP config at ${formatUserPath(configPath) ?? configPath}.${backupMsg} Codex may need to be restarted or reloaded.`, changed: true };
+    }
+    return { ok: false, action: "codex-replace", message: "Failed to plan Codex MCP replace.", changed: false };
+  } catch (error) {
+    return { ok: false, action: "codex-replace", message: error instanceof Error ? error.message : "Codex MCP replace failed.", changed: false };
+  }
+}
+
+async function removeCodexGlobal(): Promise<AgentSetupActionResult> {
+  try {
+    const homeDir = app.getPath("home");
+    const configPath = getCodexGlobalConfigPath(homeDir);
+    const plan = planCodexMcpRemove(configPath);
+    if ("ok" in plan && !plan.ok) {
+      return { ok: false, action: "codex-remove", message: plan.message, changed: false };
+    }
+    if ("targetPath" in plan) {
+      executeCodexMcpWrite(plan);
+      return { ok: true, action: "codex-remove", message: `Removed OpenAI Codex OpenPets MCP config at ${formatUserPath(configPath) ?? configPath}. Codex may need to be restarted or reloaded.`, changed: true };
+    }
+    return { ok: false, action: "codex-remove", message: "Failed to plan Codex MCP remove.", changed: false };
+  } catch (error) {
+    return { ok: false, action: "codex-remove", message: error instanceof Error ? error.message : "Codex MCP remove failed.", changed: false };
+  }
+}
+
+async function getAntigravitySetup(commandMode: OpenPetsCommandMode, selectedPetId: string | undefined): Promise<{ readonly status: AntigravitySetupStatus; readonly preview: AntigravitySetupPreview }> {
+  void commandMode;
+  const homeDir = app.getPath("home");
+  const configPath = getAntigravityGlobalMcpPath(homeDir);
+  const petId = selectedPetId || undefined;
+  const mcpVersion = getMcpPackageVersion();
+
+  const configResult = readAntigravityMcpConfig(configPath);
+  const statusResult = classifyAntigravityMcpStatus(configResult, configPath, { mcpVersion, petId, commandMode: "published" });
+
+  const state = mapAntigravityStatusToState(statusResult.status);
+  const label = mapAntigravityStatusToLabel(statusResult.status);
+  const details = statusResult.message;
+
+  return {
+    status: {
+      state,
+      label,
+      details,
+      configPath: formatUserPath(configPath) ?? configPath,
+      canInstall: statusResult.canInstall,
+      canReplace: statusResult.canReplace,
+      canRemove: statusResult.canRemove,
+    },
+    preview: {
+      global: true,
+      configPath: formatUserPath(configPath) ?? configPath,
+      mcpEntry: buildAntigravityOnlyPreview({ mcpVersion, petId, commandMode: "published" }),
+      commandMode: "published",
+    },
+  };
+}
+
+function mapAntigravityStatusToState(status: AntigravityMcpStatusResult["status"]): AntigravitySetupStatus["state"] {
+  switch (status) {
+    case "installed": return "configured";
+    case "missing": return "needs_setup";
+    case "needs-update": return "needs_update";
+    case "conflict": return "conflict";
+    case "invalid":
+    case "error": return "error";
+    default: return "error";
+  }
+}
+
+function mapAntigravityStatusToLabel(status: AntigravityMcpStatusResult["status"]): string {
+  switch (status) {
+    case "installed": return "Configured";
+    case "missing": return "Not configured";
+    case "needs-update": return "Needs update";
+    case "conflict": return "Conflict";
+    case "invalid":
+    case "error": return "Config error";
+    default: return "Checking";
+  }
+}
+
+async function installAntigravityGlobal(selectedPetId: string | undefined, commandMode: OpenPetsCommandMode): Promise<AgentSetupActionResult> {
+  void commandMode;
+  try {
+    const homeDir = app.getPath("home");
+    const configPath = getAntigravityGlobalMcpPath(homeDir);
+    const mcpVersion = getMcpPackageVersion();
+    const plan = planAntigravityMcpInstall(configPath, { mcpVersion, petId: selectedPetId || undefined, commandMode: "published" });
+    if ("ok" in plan && !plan.ok) {
+      return { ok: false, action: "antigravity-install", message: plan.message, changed: false };
+    }
+    if ("targetPath" in plan) {
+      executeAntigravityMcpWrite(plan);
+      const backupMsg = plan.backupPath ? ` Backup: ${formatUserPath(plan.backupPath) ?? plan.backupPath}.` : "";
+      return { ok: true, action: "antigravity-install", message: `Installed Google Antigravity OpenPets MCP config at ${formatUserPath(configPath) ?? configPath}.${backupMsg} Antigravity may need to be restarted or reloaded.`, changed: true };
+    }
+    return { ok: false, action: "antigravity-install", message: "Failed to plan Antigravity MCP install.", changed: false };
+  } catch (error) {
+    return { ok: false, action: "antigravity-install", message: error instanceof Error ? error.message : "Antigravity MCP install failed.", changed: false };
+  }
+}
+
+async function replaceAntigravityGlobal(selectedPetId: string | undefined, commandMode: OpenPetsCommandMode): Promise<AgentSetupActionResult> {
+  void commandMode;
+  try {
+    const homeDir = app.getPath("home");
+    const configPath = getAntigravityGlobalMcpPath(homeDir);
+    const mcpVersion = getMcpPackageVersion();
+    const plan = planAntigravityMcpReplace(configPath, { mcpVersion, petId: selectedPetId || undefined, commandMode: "published" });
+    if ("ok" in plan && !plan.ok) {
+      return { ok: false, action: "antigravity-replace", message: plan.message, changed: false };
+    }
+    if ("targetPath" in plan) {
+      executeAntigravityMcpWrite(plan);
+      const backupMsg = plan.backupPath ? ` Backup: ${formatUserPath(plan.backupPath) ?? plan.backupPath}.` : "";
+      return { ok: true, action: "antigravity-replace", message: `Replaced Google Antigravity OpenPets MCP config at ${formatUserPath(configPath) ?? configPath}.${backupMsg} Antigravity may need to be restarted or reloaded.`, changed: true };
+    }
+    return { ok: false, action: "antigravity-replace", message: "Failed to plan Antigravity MCP replace.", changed: false };
+  } catch (error) {
+    return { ok: false, action: "antigravity-replace", message: error instanceof Error ? error.message : "Antigravity MCP replace failed.", changed: false };
+  }
+}
+
+async function removeAntigravityGlobal(): Promise<AgentSetupActionResult> {
+  try {
+    const homeDir = app.getPath("home");
+    const configPath = getAntigravityGlobalMcpPath(homeDir);
+    const plan = planAntigravityMcpRemove(configPath);
+    if ("ok" in plan && !plan.ok) {
+      return { ok: false, action: "antigravity-remove", message: plan.message, changed: false };
+    }
+    if ("targetPath" in plan) {
+      executeAntigravityMcpWrite(plan);
+      return { ok: true, action: "antigravity-remove", message: `Removed Google Antigravity OpenPets MCP config at ${formatUserPath(configPath) ?? configPath}. Antigravity may need to be restarted or reloaded.`, changed: true };
+    }
+    return { ok: false, action: "antigravity-remove", message: "Failed to plan Antigravity MCP remove.", changed: false };
+  } catch (error) {
+    return { ok: false, action: "antigravity-remove", message: error instanceof Error ? error.message : "Antigravity MCP remove failed.", changed: false };
   }
 }
 

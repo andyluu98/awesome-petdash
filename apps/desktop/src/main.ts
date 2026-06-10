@@ -39,9 +39,9 @@ if (!gotSingleInstanceLock) {
 
   app.whenReady().then(async () => {
     initializeLogger();
-    app.setName("OpenPets");
+    app.setName("PetDash");
     if (process.platform === "win32") {
-      app.setAppUserModelId("dev.openpets.app");
+      app.setAppUserModelId("dev.petdash.app");
     }
     info("app", "startup begin", { version: app.getVersion(), platform: process.platform, arch: process.arch, packaged: app.isPackaged, pid: process.pid, ozonePlatform: app.commandLine.getSwitchValue("ozone-platform") || null });
 

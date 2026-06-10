@@ -42,6 +42,8 @@ export interface OpenPetsStateV1 {
     readonly claudeCommandPath?: string;
     readonly nodeCommandPath?: string;
     readonly opencodeCommandPath?: string;
+    readonly codexCommandPath?: string;
+    readonly antigravityCommandPath?: string;
     readonly quotaDisplayMode: "off" | "speech" | "label" | "mood";
   };
   readonly pets: {
@@ -383,6 +385,8 @@ function normalizePreferences(value: Partial<OpenPetsStateV1["preferences"]>): O
     claudeCommandPath: normalizeCommandPath(value.claudeCommandPath),
     nodeCommandPath: normalizeCommandPath(value.nodeCommandPath),
     opencodeCommandPath: normalizeCommandPath(value.opencodeCommandPath),
+    codexCommandPath: normalizeCommandPath(value.codexCommandPath),
+    antigravityCommandPath: normalizeCommandPath(value.antigravityCommandPath),
     quotaDisplayMode: normalizeQuotaDisplayMode(value.quotaDisplayMode),
   };
 }
@@ -457,6 +461,8 @@ function createDefaultState(): OpenPetsStateV1 {
       claudeCommandPath: undefined,
       nodeCommandPath: undefined,
       opencodeCommandPath: undefined,
+      codexCommandPath: undefined,
+      antigravityCommandPath: undefined,
       quotaDisplayMode: "off",
     },
     pets: {

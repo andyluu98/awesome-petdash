@@ -17,7 +17,7 @@ export function createAppTray(): Tray {
   }
 
   tray = new Tray(createTrayIcon());
-  tray.setToolTip("OpenPets");
+  tray.setToolTip("PetDash");
   refreshTrayMenu();
   info("tray", "created");
   console.log("OpenPets tray created.");
@@ -36,7 +36,7 @@ export function refreshTrayMenu(): void {
 
   const menu = Menu.buildFromTemplate([
     {
-      label: "OpenPets",
+      label: "PetDash",
       enabled: false,
     },
     ...createUpdateMenuItems(),
@@ -94,7 +94,7 @@ export function refreshTrayMenu(): void {
     },
     { type: "separator" },
     {
-      label: "Quit OpenPets",
+      label: "Quit PetDash",
       click: () => quitOpenPets(),
     },
   ]);
