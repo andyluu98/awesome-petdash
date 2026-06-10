@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/alvinunreal/openpets.git"
+    "url": "git+https://github.com/andyluu98/awesome-petdash.git"
   },
   "type": "module",
   "packageManager": "pnpm@11.0.8",

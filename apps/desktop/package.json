@@ -13,8 +13,8 @@
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
-    "dev": "pnpm build && electron .",
-    "dev:electron": "pnpm build:main && electron .",
+    "dev": "pnpm build:deps && pnpm build && electron .",
+    "dev:electron": "pnpm build:deps && pnpm build:main && electron .",
     "dev:control-center": "concurrently -k -n renderer,electron -c cyan,magenta \"pnpm dev:renderer\" \"wait-on http://127.0.0.1:5173 && cross-env OPENPETS_RENDERER_URL=http://127.0.0.1:5173 pnpm dev:electron\"",
     "dev:plugins": "cross-env OPENPETS_DISABLE_PLUGIN_CATALOG=1 OPENPETS_DEV_PLUGIN_ROOTS=../../plugins/official pnpm dev",
     "dev:debug": "OPENPETS_LOG_LEVEL=debug OPENPETS_LOG_CONSOLE=1 pnpm dev",
@@ -24,8 +24,8 @@
     "build:deps": "pnpm --filter @open-pets/desktop^... build",
     "test:build": "pnpm build:deps && tsc -p tsconfig.tests.json",
     "check": "pnpm typecheck && pnpm build && pnpm test",
-    "typecheck": "pnpm build:deps && tsc --noEmit && tsc -p tsconfig.renderer.json --noEmit",
-    "build:main": "pnpm build:deps && tsc",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.renderer.json --noEmit",
+    "build:main": "tsc",
     "build:renderer": "vite build",
     "dev:renderer": "vite --host 127.0.0.1",
     "build": "pnpm build:main && pnpm build:renderer"
