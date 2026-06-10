@@ -4,7 +4,7 @@ import { delimiter, join, resolve } from "node:path";
 
 import { initializeAppState, releaseStartupInstallLock } from "./app-state.js";
 import { createAppIcon } from "./assets.js";
-import { installDefaultPetDisplayHandlers, shouldOpenDefaultPetOnLaunch, showDefaultPet } from "./default-pet-controller.js";
+import { installDefaultPetDisplayHandlers, shouldOpenDefaultPetOnLaunch, showDefaultPet, syncQuotaPolling } from "./default-pet-controller.js";
 import { installAppLifecycle } from "./lifecycle.js";
 import { debug, error as logError, getLogFilePath, info, initializeLogger, warn } from "./logger.js";
 import { startLocalIpcServer } from "./local-ipc.js";
@@ -55,6 +55,7 @@ if (!gotSingleInstanceLock) {
     installInternalUiHandlers();
     createAppTray();
     installDefaultPetDisplayHandlers();
+    syncQuotaPolling();
     await startLocalIpcServer();
     releaseStartupInstallLock();
     const roots = parseDevPluginEnv(process.env.OPENPETS_DEV_PLUGIN_ROOTS);

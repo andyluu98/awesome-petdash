@@ -4,7 +4,8 @@ import { getAppStateSnapshot, getDefaultPetPosition, resetDefaultPetPosition, se
 import { defaultPetWindowSize, getDefaultPetInitialPosition } from "./display.js";
 import { debug, info } from "./logger.js";
 import { transientDisplayMs, type OpenPetsReaction } from "./local-ipc-protocol.js";
-import { clearTransientReaction, createDefaultPetWindow, getSafeDefaultPetPosition, getTransientDisplayDurationMs, getTransientReactionAnimationMs, isPetWindowDragging, loadDefaultPetContent, mergePetTransientDisplay, readWindowPosition, recoverPetMouseInterop, setPetReactionState, type PetStatusBadgeReaction, type PetTransientDisplay } from "./pet-window.js";
+import { clearTransientReaction, createDefaultPetWindow, getSafeDefaultPetPosition, getTransientDisplayDurationMs, getTransientReactionAnimationMs, isPetWindowDragging, loadDefaultPetContent, mergePetTransientDisplay, readWindowPosition, recoverPetMouseInterop, setPetReactionState, setQuotaLabelText, type PetStatusBadgeReaction, type PetTransientDisplay } from "./pet-window.js";
+import { fetchClaudeQuota, type QuotaSnapshot } from "./claude-quota.js";
 
 let defaultPetWindow: BrowserWindow | null = null;
 let paused = false;
@@ -326,6 +327,212 @@ function getCurrentDismissToken(): string | undefined {
 
 function isBusyStatusBadgeReaction(reaction: OpenPetsReaction): boolean {
   return reaction === "thinking" || reaction === "working" || reaction === "editing" || reaction === "running" || reaction === "testing" || reaction === "waiting";
+}
+
+// ---- Claude quota polling ---------------------------------------------------
+
+// The timer ticks every minute. Each tick RE-RENDERS the label (so the reset
+// countdown ticks down smoothly), but the API is only called every few minutes
+// — quota changes slowly and the endpoint is rate-limited.
+const QUOTA_POLL_INTERVAL_MS = 60_000;
+/** Minimum spacing between live API calls once we already have data. */
+const QUOTA_FETCH_INTERVAL_MS = 5 * 60_000;
+
+let quotaPollTimer: NodeJS.Timeout | null = null;
+/** Last known snapshot — reused for rendering between API fetches. */
+let lastQuotaSnapshot: QuotaSnapshot | null = null;
+/** Cached formatted values to avoid re-speaking when unchanged. */
+let lastSpeechKey = "";
+/** Timestamp (ms) of the last API fetch attempt — gates how often we call the API. */
+let lastQuotaFetchAt = 0;
+/** Consecutive failed fetches — drives a light backoff while we have no data. */
+let quotaFetchFailures = 0;
+
+/**
+ * Refresh lastQuotaSnapshot from the API, but only when due.
+ * - With no data yet: retry with backoff (1m, 2m, 4m… capped at 5m).
+ * - With data: refresh at most every QUOTA_FETCH_INTERVAL_MS.
+ * Failed fetches keep the previous snapshot (countdown stays accurate via resetsAt).
+ */
+async function maybeFetchQuota(): Promise<void> {
+  const now = Date.now();
+  const dueIn = lastQuotaSnapshot
+    ? QUOTA_FETCH_INTERVAL_MS
+    : Math.min(QUOTA_POLL_INTERVAL_MS * 2 ** quotaFetchFailures, QUOTA_FETCH_INTERVAL_MS);
+  if (now - lastQuotaFetchAt < dueIn) return;
+
+  lastQuotaFetchAt = now;
+  const snapshot = await fetchClaudeQuota();
+  debug("pet.default", "quota fetch", { hasSnapshot: !!snapshot, source: snapshot?.source ?? "none", failures: quotaFetchFailures });
+  if (snapshot) {
+    lastQuotaSnapshot = snapshot;
+    quotaFetchFailures = 0;
+  } else {
+    quotaFetchFailures = Math.min(quotaFetchFailures + 1, 4);
+  }
+}
+
+/** Map remaining % to a reaction state for mood mode. */
+function quotaMoodReaction(remainingPct: number): OpenPetsReaction {
+  if (remainingPct < 5) return "error";
+  if (remainingPct < 20) return "waiting";
+  if (remainingPct < 50) return "thinking";
+  return "idle";
+}
+
+const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/**
+ * Format the time remaining until a reset timestamp as a compact countdown.
+ * - under 1h  -> "45m"
+ * - under 1d  -> "1h02m"
+ * - 1d+       -> "2d5h"
+ * A short weekday prefix ("Fri ") is added only when the reset falls on a
+ * different local calendar day than now (e.g. the weekly window).
+ */
+function formatResetCountdown(resetsAt: string): string {
+  const resetMs = Date.parse(resetsAt);
+  if (Number.isNaN(resetMs)) return "";
+
+  const now = Date.now();
+  const totalMin = Math.floor(Math.max(0, resetMs - now) / 60_000);
+  const days = Math.floor(totalMin / 1440);
+  const hours = Math.floor((totalMin % 1440) / 60);
+  const mins = totalMin % 60;
+
+  let countdown: string;
+  if (days >= 1) countdown = `${days}d${hours}h`;
+  else if (hours >= 1) countdown = `${hours}h${String(mins).padStart(2, "0")}m`;
+  else countdown = `${mins}m`;
+
+  const resetDate = new Date(resetMs);
+  const nowDate = new Date(now);
+  const sameDay =
+    resetDate.getFullYear() === nowDate.getFullYear() &&
+    resetDate.getMonth() === nowDate.getMonth() &&
+    resetDate.getDate() === nowDate.getDate();
+  const weekday = sameDay ? "" : `${WEEKDAY_SHORT[resetDate.getDay()]} `;
+
+  return `${weekday}${countdown}`;
+}
+
+/** Format one bucket as "61% · reset 1h02m" (used % + reset countdown). */
+function formatQuotaBucket(usedPct: number, resetsAt: string): string {
+  return `${usedPct}% · reset ${formatResetCountdown(resetsAt)}`;
+}
+
+/**
+ * Format the "label" mode text, e.g. "61% · reset 1h02m  |  9% · reset Fri 2d5h".
+ * Left segment = 5-hour window, right segment = 7-day window. Null buckets are skipped.
+ */
+function formatQuotaLabel(snapshot: QuotaSnapshot): string {
+  const parts: string[] = [];
+  if (snapshot.fiveHour) parts.push(formatQuotaBucket(snapshot.fiveHour.usedPct, snapshot.fiveHour.resetsAt));
+  if (snapshot.sevenDay) parts.push(formatQuotaBucket(snapshot.sevenDay.usedPct, snapshot.sevenDay.resetsAt));
+  if (parts.length === 0) return "";
+  const staleMarker = snapshot.stale ? " ~" : "";
+  // One bucket per line (5h on top, 7d below) so the label never clips horizontally.
+  return parts.join("\n") + staleMarker;
+}
+
+/**
+ * Format a short speech bubble message.
+ * E.g. "Quota 5h: còn 79% · tuần: 96%"
+ */
+function formatQuotaSpeech(snapshot: QuotaSnapshot): string {
+  const parts: string[] = [];
+  if (snapshot.fiveHour) parts.push(`5h: còn ${snapshot.fiveHour.remainingPct}%`);
+  if (snapshot.sevenDay) parts.push(`tuần: ${snapshot.sevenDay.remainingPct}%`);
+  if (parts.length === 0) return "";
+  return `Quota ${parts.join(" · ")}`;
+}
+
+/**
+ * Run one quota tick: refresh data if due (throttled), then render per mode.
+ * Called every minute; rendering uses lastQuotaSnapshot so the reset countdown
+ * updates each minute without an API call.
+ */
+async function runQuotaPoll(): Promise<void> {
+  const mode = getAppStateSnapshot().preferences.quotaDisplayMode;
+  if (mode === "off") return;
+
+  await maybeFetchQuota();
+  const snapshot = lastQuotaSnapshot;
+
+  if (mode === "label") {
+    const label = snapshot ? formatQuotaLabel(snapshot) : "";
+    setQuotaLabelText(label);
+    refreshDefaultPetContent();
+    return;
+  }
+
+  if (mode === "speech") {
+    if (!snapshot) return;
+    const speechText = formatQuotaSpeech(snapshot);
+    const speechKey = speechText;
+    // Only speak when the message would change by ≥1% or on first load
+    if (speechKey === lastSpeechKey) return;
+    lastSpeechKey = speechKey;
+    applyExternalPetSay(speechText);
+    return;
+  }
+
+  if (mode === "mood") {
+    if (!snapshot) return;
+    // Only apply mood when pet is idle (no transient display, no active status badge)
+    if (transientDisplay || statusBadge) return;
+    const fiveHourPct = snapshot.fiveHour?.remainingPct ?? 100;
+    const sevenDayPct = snapshot.sevenDay?.remainingPct ?? 100;
+    const lowestPct = Math.min(fiveHourPct, sevenDayPct);
+    const reaction = quotaMoodReaction(lowestPct);
+    if (defaultPetWindow && !defaultPetWindow.isDestroyed()) {
+      // Use the existing reaction state setter — lowest priority, only when idle
+      const spriteState = (() => {
+        if (reaction === "idle") return "idle" as const;
+        if (reaction === "error") return "failed" as const;
+        if (reaction === "waiting") return "waiting" as const;
+        return "review" as const; // maps "thinking"
+      })();
+      setPetReactionState(defaultPetWindow, spriteState);
+    }
+  }
+}
+
+/** Start the quota poll timer. Idempotent — safe to call multiple times. */
+function startQuotaPolling(): void {
+  if (quotaPollTimer) return; // already running
+  // Run once immediately, then on the interval
+  void runQuotaPoll();
+  quotaPollTimer = setInterval(() => { void runQuotaPoll(); }, QUOTA_POLL_INTERVAL_MS);
+  quotaPollTimer.unref?.();
+}
+
+/** Stop the quota poll timer and clear any displayed quota data. */
+function stopQuotaPolling(): void {
+  if (quotaPollTimer) {
+    clearInterval(quotaPollTimer);
+    quotaPollTimer = null;
+  }
+  lastQuotaSnapshot = null;
+  lastSpeechKey = "";
+  lastQuotaFetchAt = 0;
+  quotaFetchFailures = 0;
+  // Clear the persistent label if it was set
+  setQuotaLabelText("");
+}
+
+/**
+ * Called from windows.ts after any preference update.
+ * Starts or stops polling based on the current quotaDisplayMode.
+ */
+export function syncQuotaPolling(): void {
+  const mode = getAppStateSnapshot().preferences.quotaDisplayMode;
+  if (mode === "off") {
+    stopQuotaPolling();
+    refreshDefaultPetContent(); // re-render to remove label if present
+  } else {
+    startQuotaPolling();
+  }
 }
 
 function reclampDefaultPetWindow(): void {

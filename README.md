@@ -1,3 +1,17 @@
+# awesome-petdash
+
+> A fork of **[OpenPets](https://github.com/alvinunreal/openpets)** (by alvinunreal / Boring Dystopia Development), extended further in this repo. Licensed under MIT — original copyright retained (see [LICENSE](LICENSE) and [NOTICE](NOTICE)).
+
+### What this fork adds
+
+- **🔋 Claude Code quota on your pet** — shows **% used + countdown to reset** for the 5-hour and 7-day windows, right by your pet. Three display modes (always-on **label**, **speech** bubble, or **mood**). Reads Anthropic's official OAuth usage endpoint; polls gently (every 5 min + backoff) so it never hits rate limits, while the countdown ticks every minute locally.
+- **🤖 OpenAI Codex integration** — one-click MCP setup (writes `~/.codex/config.toml`).
+- **🪐 Google Antigravity integration** — one-click MCP setup (writes `~/.gemini/config/mcp_config.json`).
+
+The original OpenPets documentation follows below.
+
+---
+
 <p align="center">
   <img src="assets/openpets.png" alt="OpenPets - pixel art desktop companion" width="100%" />
 </p>

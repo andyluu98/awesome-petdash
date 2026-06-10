@@ -53,6 +53,15 @@ interface PetContentRender {
 
 const petWindowRenderCache = new WeakMap<BrowserWindow, string>();
 
+// Quota label for "label" display mode — set by default-pet-controller.ts.
+// Empty string means no label is shown.
+let currentQuotaLabel = "";
+
+/** Set the persistent quota label shown below the pet. Pass empty string to hide. */
+export function setQuotaLabelText(label: string): void {
+  currentQuotaLabel = label;
+}
+
 const windowLoadChains = new WeakMap<BrowserWindow, Promise<void>>();
 const windowLoadSequences = new WeakMap<BrowserWindow, number>();
 const petMouseInteropRecovery = new WeakMap<BrowserWindow, (reason: string) => void>();
@@ -595,7 +604,7 @@ function applyLinuxPetWindowShape(window: BrowserWindow, scale: PetScaleValue, h
 
   const scaledWidth = Math.ceil(defaultPetSprite.frameWidth * scale);
   const scaledHeight = Math.ceil(defaultPetSprite.frameHeight * scale);
-  const petBottom = 22;
+  const petBottom = 50;
   const hitPadding = 18;
   const petHitboxWidth = scaledWidth + hitPadding * 2;
   const petHitboxHeight = scaledHeight + hitPadding * 2;
@@ -762,6 +771,10 @@ async function createInstalledPetRender(petId: string, displayName: string, paus
 }
 
 function createPetBodyMarkup(stageLabel: string, bubble: string, spriteMarkup: string): string {
+  // Render the quota label only when the module-level currentQuotaLabel is set.
+  const quotaLabelMarkup = currentQuotaLabel
+    ? `<div class="quota-label" aria-label="Claude quota">${escapeHtml(currentQuotaLabel)}</div>`
+    : "";
   return `<div class="stage" aria-label="${stageLabel}">
     ${bubble}
     <div class="pet-hitbox" aria-hidden="true">
@@ -769,6 +782,7 @@ function createPetBodyMarkup(stageLabel: string, bubble: string, spriteMarkup: s
         ${spriteMarkup}
       </div>
     </div>
+    ${quotaLabelMarkup}
   </div>`;
 }
 
@@ -777,7 +791,7 @@ function createPetWindowCss(paused: boolean, scale: PetScaleValue): string {
   const playState = paused ? "paused" : "running";
   const scaledWidth = Math.ceil(defaultPetSprite.frameWidth * scale);
   const scaledHeight = Math.ceil(defaultPetSprite.frameHeight * scale);
-  const petBottom = 22;
+  const petBottom = 50;
   const hitPadding = 18;
   const bubbleBottom = Math.ceil(petBottom + scaledHeight + 8);
   const petShellFilter = process.platform === "win32" ? "none" : "drop-shadow(0 10px 12px rgba(15, 23, 42, 0.24)) drop-shadow(0 2px 3px rgba(15, 23, 42, 0.18))";
@@ -819,6 +833,7 @@ function createPetWindowCss(paused: boolean, scale: PetScaleValue): string {
     @keyframes bubble-in { from { opacity: 0; transform: translateX(-50%) translateY(4px) scale(0.96); } to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); } }
     @keyframes status-pulse { 0%, 100% { opacity: 0.52; } 50% { opacity: 1; } }
     @media (prefers-reduced-motion: reduce) { .sprite, .installed-sprite, .bubble, .bubble-status-icon::before { animation: none !important; } }
+    .quota-label { position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%); z-index: 6; white-space: pre; text-align: center; font: 700 11px/14px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #fff; background: rgba(15,23,42,0.92); border: 1px solid rgba(255,255,255,0.22); box-shadow: 0 2px 8px rgba(0,0,0,0.35); border-radius: 12px; padding: 4px 10px; pointer-events: none; letter-spacing: 0; }
   `;
 }
 

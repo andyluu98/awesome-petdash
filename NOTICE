@@ -1,0 +1,21 @@
+awesome-petdash
+===============
+
+This project is a fork of "OpenPets" (https://github.com/alvinunreal/openpets),
+created by alvinunreal (Boring Dystopia Development) and licensed under the MIT License.
+
+Original work:
+  Copyright (c) 2026 OpenPets / alvinunreal (Boring Dystopia Development)
+
+Modifications and additions in this fork (by andyluu98):
+  Copyright (c) 2026 awesome-petdash contributors
+
+  - Claude Code subscription quota display on the desktop pet
+    (used % + reset countdown for the 5-hour and 7-day windows;
+     label / speech / mood display modes; rate-limit-safe polling).
+  - OpenAI Codex CLI integration (MCP setup at ~/.codex/config.toml).
+  - Google Antigravity integration (MCP setup at ~/.gemini/config/mcp_config.json).
+
+The full MIT license text (covering both the original work and this fork's
+additions) is provided in the LICENSE file. The original copyright notice is
+retained as required by the MIT License.

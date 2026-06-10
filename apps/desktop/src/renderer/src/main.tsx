@@ -22,7 +22,8 @@ type CodexState = { pets: PetEntry[]; error?: string };
 type PetScaleOption = { label: string; value: number };
 type UserSelectableAnimationState = "idle" | "review" | "running" | "waiting" | "waving" | "jumping" | "failed";
 type ReactionAnimationOverrides = Record<string, UserSelectableAnimationState>;
-type SettingsState = { preferences: { openDefaultPetOnLaunch: boolean; petScale: number; reactionAnimationOverrides?: ReactionAnimationOverrides }; petScaleOptions: PetScaleOption[] };
+type QuotaDisplayMode = "off" | "speech" | "label" | "mood";
+type SettingsState = { preferences: { openDefaultPetOnLaunch: boolean; petScale: number; reactionAnimationOverrides?: ReactionAnimationOverrides; quotaDisplayMode?: QuotaDisplayMode }; petScaleOptions: PetScaleOption[] };
 type LaunchAtLoginState = { supported: boolean; enabled: boolean };
 type UpdateStatus = { state: "idle" | "checking" | "available" | "current" | "error"; currentVersion: string; latestVersion?: string; releaseUrl?: string; checkedAt?: number; error?: string };
 type DashboardActivity = { messagesSent: number; reactionsSent: number; reactionCounts: Record<string, number>; perPetActivityCounts: Record<string, number>; lastActivityAt?: number };
@@ -991,6 +992,23 @@ function SettingsView() {
                 </div>
                 <select className="settings-select" value={settings?.preferences.petScale ?? ""} disabled={!settings || !!busy} onChange={(event) => patchPreferences({ petScale: Number(event.target.value) }, "Pet scale saved.")}>
                   {(settings?.petScaleOptions ?? []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </div>
+              <div className="settings-row">
+                <div className="settings-row-info">
+                  <strong>Claude quota display</strong>
+                  <small>Show your Claude Code subscription usage on the desktop pet.</small>
+                </div>
+                <select
+                  className="settings-select"
+                  value={settings?.preferences.quotaDisplayMode ?? "off"}
+                  disabled={!settings || !!busy}
+                  onChange={(event) => patchPreferences({ quotaDisplayMode: event.target.value as QuotaDisplayMode }, "Quota display saved.")}
+                >
+                  <option value="off">Off</option>
+                  <option value="speech">Speech bubble</option>
+                  <option value="label">Always-on label</option>
+                  <option value="mood">Pet mood</option>
                 </select>
               </div>
             </div>

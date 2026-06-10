@@ -9,7 +9,7 @@ import { getAppStateSnapshot, normalizePetScale, petScaleOptions, updatePreferen
 import { createAppIcon } from "./assets.js";
 import { getCatalogPageUiState, getCatalogSearchUiState, getCatalogUiState } from "./catalog.js";
 import { getCodexPetsUiState, importCodexPet, readCodexPetSpritesheet } from "./codex-pets.js";
-import { recoverDefaultPetMouseInterop, refreshDefaultPetContent, resetDefaultPetToInitialPosition } from "./default-pet-controller.js";
+import { recoverDefaultPetMouseInterop, refreshDefaultPetContent, resetDefaultPetToInitialPosition, syncQuotaPolling } from "./default-pet-controller.js";
 import { installPet, installPetFromFolder, installPetFromZipFile, removePet, setDefaultInstalledPet } from "./pet-installation.js";
 import { assertSafePetId, getInstalledPetDir } from "./pet-paths.js";
 import { debug, error as logError, warn } from "./logger.js";
@@ -63,7 +63,7 @@ function getPetsStateSnapshot(): { preferences: { defaultPetId: string }; pets: 
 }
 
 function getSettingsStateSnapshot(): {
-  preferences: Pick<ReturnType<typeof getAppStateSnapshot>["preferences"], "openDefaultPetOnLaunch" | "petScale" | "reactionAnimationOverrides">;
+  preferences: Pick<ReturnType<typeof getAppStateSnapshot>["preferences"], "openDefaultPetOnLaunch" | "petScale" | "reactionAnimationOverrides" | "quotaDisplayMode">;
   petScaleOptions: typeof petScaleOptions;
 } {
   const state = getAppStateSnapshot();
@@ -72,6 +72,7 @@ function getSettingsStateSnapshot(): {
       openDefaultPetOnLaunch: state.preferences.openDefaultPetOnLaunch,
       petScale: state.preferences.petScale,
       reactionAnimationOverrides: state.preferences.reactionAnimationOverrides,
+      quotaDisplayMode: state.preferences.quotaDisplayMode,
     },
     petScaleOptions,
   };
@@ -236,6 +237,8 @@ export function installInternalUiHandlers(): void {
       refreshDefaultPetContent();
       refreshAgentPetContent();
     }
+    // Sync quota polling whenever preferences change (quotaDisplayMode may have changed)
+    syncQuotaPolling();
     return getInternalUiWindowKindForWebContents(event.sender.id) === "control-center" ? getSettingsStateSnapshot() : state;
   });
 
@@ -626,12 +629,14 @@ async function getDefaultPetPreviewSpriteInfo(): Promise<{ readonly path: string
   return { path: builtInPath, version: `builtin-${Math.round(fallback.mtimeMs)}-${fallback.size}` };
 }
 
-function validatePreferencePatch(value: unknown): { openDefaultPetOnLaunch?: boolean; petScale?: number; reactionAnimationOverrides?: ReturnType<typeof validateReactionAnimationOverrides> } {
+const allowedQuotaDisplayModes = new Set(["off", "speech", "label", "mood"]);
+
+function validatePreferencePatch(value: unknown): { openDefaultPetOnLaunch?: boolean; petScale?: number; reactionAnimationOverrides?: ReturnType<typeof validateReactionAnimationOverrides>; quotaDisplayMode?: "off" | "speech" | "label" | "mood" } {
   if (!isRecord(value)) {
     throw new Error("Invalid preferences patch.");
   }
 
-  const patch: { openDefaultPetOnLaunch?: boolean; petScale?: number; reactionAnimationOverrides?: ReturnType<typeof validateReactionAnimationOverrides> } = {};
+  const patch: { openDefaultPetOnLaunch?: boolean; petScale?: number; reactionAnimationOverrides?: ReturnType<typeof validateReactionAnimationOverrides>; quotaDisplayMode?: "off" | "speech" | "label" | "mood" } = {};
 
   if ("openDefaultPetOnLaunch" in value) {
     if (typeof value.openDefaultPetOnLaunch !== "boolean") throw new Error("Invalid open-on-launch value.");
@@ -646,6 +651,13 @@ function validatePreferencePatch(value: unknown): { openDefaultPetOnLaunch?: boo
 
   if ("reactionAnimationOverrides" in value) {
     patch.reactionAnimationOverrides = validateReactionAnimationOverrides(value.reactionAnimationOverrides);
+  }
+
+  if ("quotaDisplayMode" in value) {
+    if (typeof value.quotaDisplayMode !== "string" || !allowedQuotaDisplayModes.has(value.quotaDisplayMode)) {
+      throw new Error("Invalid quota display mode.");
+    }
+    patch.quotaDisplayMode = value.quotaDisplayMode as "off" | "speech" | "label" | "mood";
   }
 
   return patch;
