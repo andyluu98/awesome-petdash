@@ -1,357 +1,94 @@
 # awesome-petdash
 
-> A fork of **[OpenPets](https://github.com/alvinunreal/openpets)** (by alvinunreal / Boring Dystopia Development), extended further in this repo. Licensed under MIT — original copyright retained (see [LICENSE](LICENSE) and [NOTICE](NOTICE)).
+A tiny **desktop pet** that lives on your screen, keeps you company, and **monitors your AI coding agents** in real time — now with a built-in **Claude Code quota meter** right on the pet.
 
-### What this fork adds
-
-- **🔋 Claude Code quota on your pet** — shows **% used + countdown to reset** for the 5-hour and 7-day windows, right by your pet. Three display modes (always-on **label**, **speech** bubble, or **mood**). Reads Anthropic's official OAuth usage endpoint; polls gently (every 5 min + backoff) so it never hits rate limits, while the countdown ticks every minute locally.
-- **🤖 OpenAI Codex integration** — one-click MCP setup (writes `~/.codex/config.toml`).
-- **🪐 Google Antigravity integration** — one-click MCP setup (writes `~/.gemini/config/mcp_config.json`).
-
-The original OpenPets documentation follows below.
+> **Fork notice.** This project is a fork of **[OpenPets](https://github.com/alvinunreal/openpets)** (by alvinunreal / Boring Dystopia Development), licensed under MIT. The original copyright is retained — see [LICENSE](LICENSE) and [NOTICE](NOTICE). This repo adds the quota meter and extra agent integrations on top.
 
 ---
 
-<p align="center">
-  <img src="assets/openpets.png" alt="OpenPets - pixel art desktop companion" width="100%" />
-</p>
+## What this fork adds
 
-<p align="center">
-  <strong>A tiny desktop companion that keeps you company.</strong>
-</p>
+### 🔋 Claude Code quota on your pet
+A small label that sits with your pet and shows your **Claude Code subscription usage**:
 
-<p align="center">
-  A playful pet that lives on your desktop, keeps you company, and can grow with bundled abilities and developer integrations.
-</p>
+```
+84% · reset 11m
+12% · reset Thu 13h45m
+```
 
-<p align="center">
-  <img src="assets/intro.png" alt="OpenPets reacting across multiple coding agent sessions" width="100%" />
-</p>
+- **Line 1 = 5-hour window**, **line 2 = 7-day window**
+- Shows **% used** and a **countdown to reset** (a weekday like `Thu` appears when the reset falls on another day)
+- Three display modes — pick in **Control Center → settings → "Claude quota display"**:
+  - **Label** — always-on label by the pet
+  - **Speech** — the pet says your quota now and then
+  - **Mood** — the pet's mood reflects how much quota is left
+- Reads Anthropic's official OAuth usage endpoint. **Rate-limit safe**: the API is polled at most every 5 minutes (with backoff), while the countdown ticks every minute locally — no extra requests, and it never burns your quota (it's a usage *check*, not a model call).
 
-<div align="center">
-  <p><sub>by <b>Boring Dystopia Development</b></sub></p>
-  <p>
-    <a href="https://boringdystopia.ai/"><img src="https://img.shields.io/badge/boringdystopia.ai-111111?style=for-the-badge&logo=vercel&logoColor=white" alt="boringdystopia.ai"></a>&nbsp;
-    <a href="https://x.com/alvinunreal"><img src="https://img.shields.io/badge/X-@alvinunreal-000000?style=for-the-badge&logo=x&logoColor=white" alt="X @alvinunreal"></a>&nbsp;
-    <a href="https://t.me/boringdystopiadevelopment"><img src="https://img.shields.io/badge/Telegram-Join%20channel-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Join channel"></a>&nbsp;
-  </p>
-</div>
+### 🤖 More agent integrations
+One-click MCP setup in **Control Center → Integrations** for:
 
+| Agent | Config written |
+|-------|----------------|
+| Claude Code | `~/.claude` (hooks + MCP) |
+| Cursor | `~/.cursor/mcp.json` |
+| OpenCode | `~/.opencode/opencode.jsonc` |
+| **OpenAI Codex** *(new)* | `~/.codex/config.toml` |
+| **Google Antigravity** *(new)* | `~/.gemini/config/mcp_config.json` |
 
+> Note: the quota meter is **Claude Code–specific** (it uses Anthropic's usage API). Codex and Antigravity are integrated so the pet can **react to their activity** via MCP.
 
 ---
 
-## 2-minute Quick Start
+## Install (Windows)
 
-Download and launch the desktop app from [OpenPets Releases](https://github.com/alvinunreal/openpets/releases/latest). A companion pet appears immediately; bundled abilities make it feel alive without requiring an agent setup.
+Download and run one of:
 
-If you also want coding-agent integration, install the OpenPets Agent Skill with [skills.sh](https://skills.sh/):
+- **`OpenPets-*-win-x64-setup.exe`** — installer
+- **`OpenPets-*-win-x64-portable.exe`** — run without installing
 
-```bash
-npx skills add alvinunreal/openpets --skill openpets
-```
+On first launch a pet appears. To show the quota meter, open the **Control Center** (right-click the pet → *Open Control Center*) → **settings** → set **Claude quota display** to *Label* (or Speech / Mood).
 
-Then open Claude Code, OpenCode, Codex, or another skill-aware agent and say:
+To connect a coding agent, go to **Integrations**, pick your agent (Claude / Cursor / OpenCode / Codex / Antigravity) and click **Install**.
 
-```text
-Use the OpenPets skill. Install OpenPets for me, connect this agent, and verify the integration works.
-```
+Other QoL options already built in: **open at login** (auto-launch) and your quota display mode is remembered between restarts.
 
-For project setup, open your agent inside the repo and say:
+---
 
-```text
-Use the OpenPets skill. Help me choose or install a pet, configure it for this project, and verify the project integration.
-```
+## Build from source
 
-Useful prompts:
-
-```text
-Use the OpenPets skill. Configure this project for Claude Code with a pet.
-Use the OpenPets skill. Configure this project for OpenCode with a pet.
-Use the OpenPets skill. Debug why openpets_status is unavailable.
-```
-
-## Star OpenPets
-
-Here is an extra GIF of me starring my own repo to encourage you to do the same. If OpenPets makes your coding setup a little more fun, please give the repo a star.
-
-<p align="center">
-  <img src="assets/star-repo.gif" alt="Starring the OpenPets repository" width="100%" />
-</p>
-
-## What is OpenPets?
-
-OpenPets is a tray-first desktop companion app. A pet appears on your desktop, keeps you company, and can use bundled abilities for ambient presence, breaks, playful actions, and focus sessions. Coding-agent integrations are still supported as an advanced developer layer.
-
-- **Desktop companion** - a small pet that idles, reacts, and gives OpenPets a friendly presence even before developer tools are configured.
-- **Bundled abilities** - first-party plugins can add ambient check-ins, break nudges, playful pet actions, focus timers, safe little walks, and optional developer notifications.
-- **Developer integrations** - advanced setup for Claude Code, OpenCode, Cursor, Pi, and MCP-capable tools when you want coding activity to drive the pet.
-- **MCP ready** - any MCP-capable agent can send short safe speech bubbles and reactions through the OpenPets MCP server.
-- **Pet-pack friendly** - loads installed animated pet packs and can route a selected agent/project to its own pet window.
-- **Privacy-conscious by design** - automatic hook speech is static and local; prompts, code, logs, command output, URLs, paths, and secrets are not shown in bubbles.
-
-## Manage your pets
-
-Browse installed pets, preview their animations, and choose which companion should follow each coding agent from the OpenPets desktop app.
-
-<p align="center">
-  <img src="assets/manage-pets.png" alt="Managing pets in the OpenPets desktop app" width="100%" />
-</p>
-
-## Quick start
-
-Install the desktop app, then optionally connect your coding agent.
-
-### 1. Install OpenPets Desktop
-
-Download the latest app from [OpenPets Releases](https://github.com/alvinunreal/openpets/releases/latest):
-
-- **macOS Apple Silicon**: `OpenPets-*-mac-arm64.dmg`
-- **macOS Intel**: `OpenPets-*-mac-x64.dmg`
-- **Windows**: `OpenPets-*-win-x64-setup.exe`
-- **Linux**: `OpenPets-*-linux-x86_64.AppImage`
-
-Launch OpenPets. You should see the desktop pet and the OpenPets tray/menu-bar icon.
-
-> Current builds may be unsigned. macOS or Windows may show a security warning the first time you open the app.
-
-If macOS says the app is damaged or should be moved to Trash, remove the quarantine flag and open it again:
-
-```bash
-xattr -dr com.apple.quarantine /Applications/OpenPets.app
-open /Applications/OpenPets.app
-```
-
-### 2. Optional: connect your agent
-
-Use the desktop **Integrations** screen for global setup when available:
-
-- **Claude Code** - installs OpenPets MCP, Claude memory instructions, and optional Claude hooks.
-- **OpenCode** - installs OpenPets MCP, an OpenCode instruction file, and the `@open-pets/opencode` plugin.
-
-<p align="center">
-  <img src="assets/integrations.png" alt="OpenPets desktop integrations screen" width="100%" />
-</p>
-
-For project-local setup, run the CLI from the project you want to configure:
-
-```bash
-npx -y @open-pets/cli@latest configure --agent claude --pet <petId>
-npx -y @open-pets/cli@latest configure --agent opencode --pet <petId>
-```
-
-If you prefer a permanent `openpets` shell command, install the CLI once with `npm install -g @open-pets/cli` and replace `npx -y @open-pets/cli@latest` with `openpets`.
-
-Project-local setup can create project files such as `.claude/settings.local.json` or `.opencode/opencode.jsonc`. Review them before committing because they may include the selected pet id.
-
-## Advanced: agent integrations
-
-OpenPets integrations have three layers:
-
-1. **MCP tools** for explicit agent actions.
-2. **Agent instructions** so agents know when to use those tools.
-3. **Hooks/plugins** for automatic decorative reactions during normal agent work.
-
-### Claude Code
-
-Claude Code integration supports:
-
-- `openpets` MCP setup via Claude Code.
-- Managed Claude memory instructions in `~/.claude/CLAUDE.md` and `~/.claude/openpets.md`.
-- Managed Claude hooks in `~/.claude/settings.json`.
-- Project-local setup through `npx -y @open-pets/cli@latest configure --agent claude --pet <petId>` or the optional global `openpets` CLI.
-
-Typical global MCP command shape:
-
-```bash
-claude mcp add --scope user openpets -- npx -y @open-pets/mcp@latest
-```
-
-With a selected pet:
-
-```bash
-claude mcp add --scope user openpets -- npx -y @open-pets/mcp@latest --pet <petId>
-```
-
-See [`docs/claude-integration.md`](docs/claude-integration.md) for the full file layout, hook mapping, project-local behavior, and safety rules.
-
-### OpenCode
-
-OpenCode integration supports:
-
-- An MCP entry using `@open-pets/cli mcp`.
-- A managed `openpets.md` instruction file.
-- The `@open-pets/opencode` plugin for automatic reactions.
-- Global desktop setup and project-local `.opencode` setup.
-
-Project-local setup:
-
-```bash
-npx -y @open-pets/cli@latest configure --agent opencode --pet <petId>
-```
-
-See [`docs/opencode.md`](docs/opencode.md) for global config selection, plugin behavior, project-local setup, and safety rules.
-
-### Generic MCP clients
-
-Any MCP-capable editor or coding agent can talk to OpenPets through the MCP server while the desktop app is running.
-
-```json
-{
-  "mcpServers": {
-    "openpets": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@open-pets/mcp@latest"]
-    }
-  }
-}
-```
-
-To target a specific installed non-default pet:
-
-```json
-{
-  "mcpServers": {
-    "openpets": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@open-pets/mcp@latest", "--pet", "<petId>"]
-    }
-  }
-}
-```
-
-Available MCP tools:
-
-- `openpets_status` - check whether OpenPets is reachable and which pet is targeted.
-- `openpets_react` - set a short reaction on the target pet.
-- `openpets_say` - show a short safe speech bubble, optionally with a reaction.
-
-`openpets_say` messages must be short, single-line, and must not look like code, logs, secrets, URLs, or file paths.
-
-## How it works
-
-```text
-Claude Code / OpenCode / Pi / MCP client
-  -> @open-pets/mcp, @open-pets/cli mcp, @open-pets/claude hook, @open-pets/opencode plugin, or @open-pets/pi extension
-  -> @open-pets/client
-  -> OpenPets desktop local IPC discovery file
-  -> OpenPets desktop IPC socket/pipe
-  -> default pet or selected agent pet window
-```
-
-The desktop app writes a local discovery file containing an IPC endpoint and a per-run token. Clients must send that token with every request.
-
-For Windows desktop + WSL agent setups, see [`docs/wsl-ipc.md`](docs/wsl-ipc.md) for the opt-in TCP transport.
-
-When an integration is configured with `--pet <petId>`, OpenPets asks the desktop app for a short-lived lease. Valid installed non-default pets open as explicit agent pet windows. Missing, invalid, broken, built-in, or default pet requests fall back to the desktop default pet.
-
-## Reactions and speech
-
-Automatic hooks are decorative and best-effort. They do not approve, deny, block, or change agent behavior.
-
-Common reaction mapping:
-
-| Agent activity | Reaction |
-| --- | --- |
-| Prompt/chat starts | `thinking` |
-| File edit/write/patch | `editing` |
-| Test-like shell command | `testing` |
-| Permission request | `waiting` |
-| Successful idle/stop | `success` |
-| Session/error stop | `error` |
-
-Generic shell activity is intentionally quiet by default. Hook/plugin speech is throttled and selected from local static message pools such as `Approval needed` or `Something failed`.
-
-### Pi extension package
-
-OpenPets includes an experimental Pi extension package at `@open-pets/pi`. Pi support is extension-first rather than MCP-first: the extension listens to Pi lifecycle/tool events and sends local best-effort reactions through `@open-pets/client`.
-
-```bash
-pi install npm:@open-pets/pi
-pi install -l npm:@open-pets/pi
-```
-
-Inside Pi, the extension registers `/openpets status`, `/openpets test`, `/openpets react <reaction>`, and `/openpets say <message>`. Automatic events do not forward prompts, assistant text, tool output, file contents, paths, URLs, or secrets. Real Pi CLI install validation is still required before marking the integration fully supported.
-
-## Development
-
-### Requirements
-
-- Node.js 20+
-- pnpm 11+
-- TypeScript
-
-No Bun runtime is required for development.
-
-### Install
+Requires Node 18+ (tested on 25) and pnpm.
 
 ```bash
 pnpm install
+pnpm --filter @open-pets/desktop build      # build main + renderer
+pnpm --filter @open-pets/desktop package     # produce installers in apps/desktop/dist-electron
 ```
 
-### Run the desktop app
+Run in dev:
 
 ```bash
-pnpm dev:desktop
+cd apps/desktop
+pnpm exec electron .
 ```
 
-Equivalent package command:
+---
 
-```bash
-pnpm --filter @open-pets/desktop dev
+## Project layout
+
+```
+apps/desktop          Electron app (main process + React Control Center)
+  src/claude-quota.ts        quota fetcher (Anthropic OAuth usage + cache fallback)
+  src/default-pet-controller.ts  quota polling + display modes
+  src/pet-window.ts          pet rendering + quota label
+packages/claude|cursor|opencode|codex|antigravity   per-agent MCP setup
+packages/mcp          shared MCP server the pet listens on
 ```
 
-### Checks
+---
 
-```bash
-pnpm check
-pnpm typecheck
-pnpm build
-pnpm test
-```
+## Credits & license
 
-OpenPets currently uses lightweight Node contract checks instead of a full test framework. See [`docs/testing.md`](docs/testing.md).
+- Original project: **[OpenPets](https://github.com/alvinunreal/openpets)** by alvinunreal (Boring Dystopia Development) — MIT.
+- This fork: additional features by the awesome-petdash contributors — MIT.
 
-### Package desktop builds
-
-```bash
-pnpm package:desktop:dir
-pnpm package:desktop
-```
-
-Release process details live in [`docs/release.md`](docs/release.md).
-
-## Workspace layout
-
-```text
-apps/desktop              Electron desktop app
-packages/client           @open-pets/client, local IPC client
-packages/mcp              @open-pets/mcp, MCP stdio server
-packages/claude           @open-pets/claude, Claude command and hook helpers
-packages/opencode         @open-pets/opencode, OpenCode config and plugin integration
-packages/pi               @open-pets/pi, Pi extension package
-packages/agent-events     Shared safe agent event speech helpers
-packages/cli              @open-pets/cli, user-run CLI and MCP/hook entrypoints
-packages/pet-format       @open-pets/pet-format, pet/catalog format types
-docs/                     Documentation
-```
-
-## Documentation
-
-- [`docs/claude-integration.md`](docs/claude-integration.md) - Claude Code setup, MCP, memory, hooks, and safety.
-- [`docs/opencode.md`](docs/opencode.md) - OpenCode global/project setup, plugin behavior, and safety.
-- [`docs/wsl-ipc.md`](docs/wsl-ipc.md) - Windows desktop + WSL MCP transport setup.
-- [`docs/testing.md`](docs/testing.md) - test/check strategy.
-- [`docs/release.md`](docs/release.md) - desktop release process.
-- [`docs/workflow.md`](docs/workflow.md) - project workflow notes.
-
-## Safety and privacy notes
-
-- OpenPets local IPC is local-only and protected by a per-run token.
-- Hook/plugin errors are swallowed unless debug logging is enabled.
-- Automatic speech is static and local; it does not include model-generated prompt text.
-- Tool inputs and command text are used only for coarse reaction classification.
-- Managed setup preserves unrelated user config and removes only OpenPets-managed entries.
-- Speech validation rejects code-like, secret-like, URL-like, path-like, or multiline messages.
+Licensed under the **MIT License**. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
